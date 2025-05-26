@@ -1,4 +1,4 @@
-# Enhanced auth.py with popup OAuth support
+# Enhanced auth.py with popup OAuth support - Fixed for Streamlit Cloud
 
 import streamlit as st
 import requests
@@ -12,20 +12,52 @@ import time
 import base64
 import json
 from urllib.parse import urlencode, parse_qs
-from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="C:/Users/shrut/OneDrive/Desktop/asha/.env")
-load_dotenv()
+# Load environment variables (only for local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not available in Streamlit Cloud
 
-# OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+# OAuth Configuration - Use Streamlit secrets for production
+GOOGLE_CLIENT_ID = st.secrets.get("GOOGLE_CLIENT_ID") or os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET") or os.getenv("GOOGLE_CLIENT_SECRET")
+
+def get_query_params():
+    """Safely get query parameters from URL"""
+    try:
+        # For Streamlit >= 1.30
+        return dict(st.query_params)
+    except AttributeError:
+        try:
+            # Fallback for older versions
+            return st.experimental_get_query_params()
+        except:
+            return {}
+
+def get_streamlit_url():
+    """Get the correct Streamlit app URL"""
+    # For your specific app
+    if "streamlit.app" in str(st.get_option("browser.serverAddress") or ""):
+        return "https://nby3lhwfkpzxcdkiixxjfq.streamlit.app"
+    
+    # Check environment variables
+    if os.getenv("STREAMLIT_URL"):
+        return os.getenv("STREAMLIT_URL")
+    
+    # Try to detect Streamlit Cloud
+    if any(key.startswith("STREAMLIT") for key in os.environ.keys()):
+        return "https://nby3lhwfkpzxcdkiixxjfq.streamlit.app"
+    
+    # Local development
+    return "http://localhost:8501"
 
 class GoogleAuthenticator:
-    def __init__(self, client_id, client_secret, redirect_uri):
+    def __init__(self, client_id, client_secret):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.redirect_uri = redirect_uri
+        self.redirect_uri = get_streamlit_url()
         self.scopes = [
             'openid',
             'https://www.googleapis.com/auth/userinfo.email',
@@ -34,6 +66,10 @@ class GoogleAuthenticator:
     
     def get_authorization_url(self, state=None):
         """Generate OAuth URL with improved error handling"""
+        if not self.client_id or not self.client_secret:
+            st.error("❌ OAuth credentials not configured. Please check your secrets.")
+            return None
+            
         try:
             flow = Flow.from_client_config(
                 {
@@ -52,7 +88,7 @@ class GoogleAuthenticator:
             if not state:
                 state = secrets.token_urlsafe(32)
             
-            # Store state with timestamp for expiration tracking
+            # Store state with timestamp
             st.session_state.oauth_state = state
             st.session_state.oauth_state_timestamp = time.time()
             
@@ -60,31 +96,32 @@ class GoogleAuthenticator:
                 access_type='offline',
                 include_granted_scopes='true',
                 state=state,
-                prompt='select_account'  # Always show account selector
+                prompt='select_account'
             )
             
             return auth_url
             
         except Exception as e:
-            st.error(f"OAuth configuration error: {str(e)}")
+            st.error(f"❌ OAuth configuration error: {str(e)}")
+            st.error("Please check your Google OAuth credentials in Streamlit secrets.")
             return None
     
     def handle_callback(self, authorization_code, state=None):
         """Enhanced callback handling with better validation"""
-        # Enhanced state validation
+        # Validate state
         stored_state = st.session_state.get('oauth_state')
         stored_timestamp = st.session_state.get('oauth_state_timestamp', 0)
         current_time = time.time()
         
         # Check if state is expired (10 minutes)
         if current_time - stored_timestamp > 600:
-            st.error("OAuth session expired. Please try logging in again.")
+            st.error("❌ OAuth session expired. Please try logging in again.")
             self._clear_oauth_state()
             return None, None
         
-        # Validate state
+        # Validate state parameter
         if state and state != stored_state:
-            st.error("OAuth state validation failed. This might be a security issue.")
+            st.error("❌ OAuth state validation failed. Please try again.")
             self._clear_oauth_state()
             return None, None
         
@@ -103,6 +140,7 @@ class GoogleAuthenticator:
             )
             flow.redirect_uri = self.redirect_uri
             
+            # Exchange code for token
             flow.fetch_token(code=authorization_code)
             credentials = flow.credentials
             
@@ -115,13 +153,13 @@ class GoogleAuthenticator:
             return user_info, credentials
             
         except Exception as e:
-            st.error(f"Authentication failed: {str(e)}")
+            st.error(f"❌ Authentication failed: {str(e)}")
             self._clear_oauth_state()
             return None, None
     
     def _clear_oauth_state(self):
         """Clear all OAuth state data"""
-        keys_to_clear = ['oauth_state', 'oauth_state_timestamp', 'oauth_states']
+        keys_to_clear = ['oauth_state', 'oauth_state_timestamp']
         for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
@@ -129,169 +167,91 @@ class GoogleAuthenticator:
     def _get_user_info(self, access_token):
         """Get user information from Google API"""
         headers = {'Authorization': f'Bearer {access_token}'}
-        response = requests.get('https://www.googleapis.com/oauth2/v2/userinfo', headers=headers)
+        response = requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo', 
+            headers=headers,
+            timeout=10
+        )
         
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception(f"Failed to get user info: {response.status_code} - {response.text}")
+            raise Exception(f"Failed to get user info: {response.status_code}")
 
-def create_oauth_popup_component():
-    """Create JavaScript component for OAuth popup"""
-    return """
-    <script>
-    function openOAuthPopup(authUrl) {
-        const popup = window.open(
-            authUrl,
-            'google_oauth',
-            'width=500,height=600,scrollbars=yes,resizable=yes'
-        );
-        
-        // Check if popup was blocked
-        if (!popup || popup.closed || typeof popup.closed == 'undefined') {
-            alert('Popup blocked! Please allow popups for this site and try again.');
-            return;
-        }
-        
-        // Monitor popup for completion
-        const checkClosed = setInterval(() => {
-            if (popup.closed) {
-                clearInterval(checkClosed);
-                // Refresh the parent window to check for authentication
-                window.location.reload();
-            }
-        }, 1000);
-        
-        // Handle popup messaging (if needed)
-        window.addEventListener('message', (event) => {
-            if (event.origin !== window.location.origin) return;
-            
-            if (event.data.type === 'OAUTH_SUCCESS') {
-                popup.close();
-                clearInterval(checkClosed);
-                window.location.reload();
-            }
-        });
-    }
-    </script>
-    """
-
-def get_streamlit_url():
-    """Dynamically get the current Streamlit app URL"""
-    try:
-        # Try to get from Streamlit context
-        import streamlit.web.bootstrap as bootstrap
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-        
-        ctx = get_script_run_ctx()
-        if ctx and hasattr(ctx, 'session_info'):
-            return f"https://{ctx.session_info.host}"
-    except:
-        pass
+def enhanced_oauth_login():
+    """Enhanced OAuth login with better error handling"""
     
-    # Fallback methods
-    if os.getenv("STREAMLIT_URL"):
-        return os.getenv("STREAMLIT_URL")
+    # Check if credentials are configured
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        st.error("❌ Google OAuth not configured!")
+        st.info("""
+        **To fix this:**
+        1. Go to your Streamlit app settings
+        2. Add these secrets:
+           - `GOOGLE_CLIENT_ID` = your Google OAuth client ID
+           - `GOOGLE_CLIENT_SECRET` = your Google OAuth client secret
+        3. Make sure your OAuth redirect URI includes: `https://nby3lhwfkpzxcdkiixxjfq.streamlit.app`
+        """)
+        return False
     
-    # Check if running on Streamlit Cloud
-    if os.getenv("STREAMLIT_CLOUD"):
-        # Try to construct from environment
-        app_name = os.getenv("STREAMLIT_APP_NAME", "unknown")
-        return f"https://{app_name}.streamlit.app"
+    authenticator = GoogleAuthenticator(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
     
-    # Local development fallback
-    return "http://localhost:8501"
-
-def enhanced_oauth_login(authenticator):
-    """Enhanced OAuth login with popup support"""
+    # Handle OAuth callback first
+    callback_result = handle_oauth_callback(authenticator)
+    if callback_result is True:
+        return True
+    elif callback_result is False:
+        return False
     
-    # Get dynamic redirect URI
-    current_url = get_streamlit_url()
-    authenticator.redirect_uri = current_url
+    # Show login UI
+    st.markdown("### 🔐 Authentication Required")
+    st.markdown("Please sign in with your Google account to continue.")
     
-    col1, col2 = st.columns([1, 1])
+    if st.button("🔵 Sign in with Google", type="primary", use_container_width=True):
+        auth_url = authenticator.get_authorization_url()
+        if auth_url:
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+            st.info("🔄 Redirecting to Google for authentication...")
+            st.markdown(f"**[Click here if not redirected automatically]({auth_url})**")
     
-    with col1:
-        if st.button("🔵 Continue with Google", key="google_login_popup", use_container_width=True):
-            auth_url = authenticator.get_authorization_url()
-            if auth_url:
-                # Create popup OAuth
-                st.markdown(create_oauth_popup_component(), unsafe_allow_html=True)
-                st.markdown(f"""
-                <button onclick="openOAuthPopup('{auth_url}')" 
-                        style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%;">
-                    🔵 Open Google Login Popup
-                </button>
-                """, unsafe_allow_html=True)
-                
-                st.info("🔍 If the popup doesn't open automatically, click the button above or try the direct link below.")
-                st.markdown(f"[**Direct Google Login Link**]({auth_url})")
-    
-    with col2:
-        if st.button("🔗 Direct Google Login", key="google_login_direct", use_container_width=True):
-            auth_url = authenticator.get_authorization_url()
-            if auth_url:
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-                st.info("Redirecting to Google authentication...")
-                st.markdown(f"[**Click here if not redirected**]({auth_url})")
-
-def validate_google_email(email):
-    """Enhanced email validation"""
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if not re.match(pattern, email):
-        return False, "Invalid email format"
-    
-    # Check for common test emails
-    test_patterns = [
-        r'^test@test\.com$', r'^fake@fake\.com$', r'^example@example\.com$',
-        r'^user@user\.com$', r'^admin@admin\.com$'
-    ]
-    
-    for pattern in test_patterns:
-        if re.match(pattern, email.lower()):
-            return False, "Please use a real email address"
-    
-    return True, "Valid email"
+    return False
 
 def handle_oauth_callback(authenticator):
-    """Enhanced OAuth callback handler with better error messages"""
+    """Handle OAuth callback with better error handling"""
     try:
-        # Get query parameters safely
-        query_params = {}
-        try:
-            # Try new method first
-            query_params = st.query_params
-        except AttributeError:
-            # Fallback for older Streamlit versions
-            query_params = st.experimental_get_query_params()
+        query_params = get_query_params()
     except Exception as e:
         st.error(f"Error reading URL parameters: {str(e)}")
         return None
 
-    # Check for OAuth callback parameters
+    # Handle successful OAuth callback
     if 'code' in query_params:
-        auth_code = query_params['code'][0] if isinstance(query_params['code'], list) else query_params['code']
+        auth_code = query_params['code']
+        if isinstance(auth_code, list):
+            auth_code = auth_code[0]
+            
         state = query_params.get('state')
         if isinstance(state, list):
             state = state[0]
 
-        with st.spinner("🔐 Completing Google authentication..."):
+        with st.spinner("🔐 Completing authentication..."):
             try:
                 user_info, credentials = authenticator.handle_callback(auth_code, state)
                 
                 if user_info and credentials:
-                    # Store user info in session state
+                    # Store authentication data
                     st.session_state.user_info = user_info
                     st.session_state.authenticated = True
                     st.session_state.credentials = credentials
+                    st.session_state.email = user_info.get('email')
+                    st.session_state.name = user_info.get('name')
                     
                     # Clear URL parameters
-                    st.experimental_get_query_params.clear()
+                    clear_url_params()
                     
-                    st.success(f"🎉 Welcome {user_info.get('name', 'User')}! Authentication successful!")
+                    st.success(f"🎉 Welcome {user_info.get('name', 'User')}!")
                     time.sleep(1)
                     st.rerun()
-                    
                     return True
                 else:
                     st.error("❌ Authentication failed. Please try again.")
@@ -299,71 +259,88 @@ def handle_oauth_callback(authenticator):
                     
             except Exception as e:
                 st.error(f"❌ Authentication error: {str(e)}")
-                st.info("💡 Try refreshing the page and logging in again.")
                 return False
     
-    # Check for OAuth error
+    # Handle OAuth errors
     elif 'error' in query_params:
-        error = query_params['error'][0] if isinstance(query_params['error'], list) else query_params['error']
+        error = query_params['error']
+        if isinstance(error, list):
+            error = error[0]
+            
         error_description = query_params.get('error_description', ['Access denied'])
         if isinstance(error_description, list):
             error_description = error_description[0]
         
         st.error(f"❌ Google OAuth Error: {error}")
-        st.error(f"Details: {error_description}")
+        if error_description:
+            st.error(f"Details: {error_description}")
         
-        # Clear error from URL
-        st.experimental_get_query_params.clear()
-
-        
+        clear_url_params()
         return False
     
     return None
 
-def reset_auth_state():
-    """Reset all authentication-related session state"""
+def clear_url_params():
+    """Clear URL parameters"""
+    try:
+        st.query_params.clear()
+    except:
+        pass
+
+def is_authenticated():
+    """Check if user is authenticated"""
+    return st.session_state.get('authenticated', False) and st.session_state.get('user_info') is not None
+
+def get_user_info():
+    """Get current user information"""
+    return st.session_state.get('user_info', {})
+
+def logout():
+    """Logout user and clear session"""
+    # Clear authentication data
     auth_keys = [
-        'oauth_state', 'oauth_state_timestamp', 'oauth_states',
-        'user_info', 'authenticated', 'credentials', 'logged_in',
-        'email', 'name', 'profile_picture'
+        'oauth_state', 'oauth_state_timestamp', 'user_info', 
+        'authenticated', 'credentials', 'email', 'name'
     ]
     
     for key in auth_keys:
         if key in st.session_state:
             del st.session_state[key]
     
-    # Clear URL parameters
-    try:
-        st.query_params.clear()
-    except:
-        pass
-    
-    st.success("🔄 Authentication state reset. Please try logging in again.")
+    clear_url_params()
+    st.success("👋 Logged out successfully!")
     st.rerun()
 
+def validate_google_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
 def debug_oauth_setup():
-    """Debug function to check OAuth configuration"""
+    """Debug OAuth configuration"""
     st.markdown("### 🔧 OAuth Debug Information")
     
-    # Check environment variables
-    client_id_set = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID != 'your_google_client_id_here')
-    client_secret_set = bool(GOOGLE_CLIENT_SECRET and GOOGLE_CLIENT_SECRET != 'your_google_client_secret_here')
+    client_id_set = bool(GOOGLE_CLIENT_ID)
+    client_secret_set = bool(GOOGLE_CLIENT_SECRET)
     
     st.write(f"**Google Client ID Set:** {'✅ Yes' if client_id_set else '❌ No'}")
     st.write(f"**Google Client Secret Set:** {'✅ Yes' if client_secret_set else '❌ No'}")
-    st.write(f"**Current URL:** {get_streamlit_url()}")
+    st.write(f"**Redirect URL:** {get_streamlit_url()}")
     
-    if client_id_set:
-        st.write(f"**Client ID (first 20 chars):** {GOOGLE_CLIENT_ID[:20]}...")
+    if client_id_set and len(GOOGLE_CLIENT_ID) > 20:
+        st.write(f"**Client ID Preview:** {GOOGLE_CLIENT_ID[:20]}...")
     
     # Session state info
-    st.write("**Session State:**")
-    oauth_keys = ['oauth_state', 'authenticated', 'user_info']
-    for key in oauth_keys:
-        if key in st.session_state:
-            st.write(f"- {key}: ✅ Present")
-        else:
-            st.write(f"- {key}: ❌ Not set")
+    st.write("**Current Session:**")
+    st.write(f"- Authenticated: {st.session_state.get('authenticated', False)}")
+    st.write(f"- User Info: {'✅ Present' if st.session_state.get('user_info') else '❌ None'}")
     
-    if st.button("🔄 Reset OAuth State"):
-        reset_auth_state()
+    if st.button("🔄 Reset Authentication"):
+        logout()
+
+# Main authentication function to use in your app
+def require_auth():
+    """Main function to handle authentication - use this in your main app"""
+    if not is_authenticated():
+        return enhanced_oauth_login()
+    return True
