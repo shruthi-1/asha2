@@ -16,8 +16,8 @@ load_dotenv(dotenv_path="C:/Users/shrut/OneDrive/Desktop/asha/.env")
 load_dotenv()
 
 # OAuth Configuration
-GOOGLE_CLIENT_ID = 915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET =  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
+GOOGLE_CLIENT_ID = "915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET =  "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"
 model = "gemini-1.5"
 
 class GoogleAuthenticator:
