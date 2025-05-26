@@ -711,6 +711,11 @@ def chat_page():
                 st.session_state.pop(key, None)
             st.session_state.page = "login"
             st.rerun()
+            
+        if st.session_state.get("pending_user_input"):
+            process_user_input(st.session_state.pending_user_input)
+            st.session_state.pending_user_input = None
+
 
         # Chat summary
         st.markdown("---")
@@ -776,9 +781,9 @@ def chat_page():
     
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-       if st.button("💜 Send Message", use_container_width=True):
-        if user_input.strip():
-            st.session_state.pending_user_input = user_input.strip()
+        if st.button("💜 Send Message", use_container_width=True):
+            if user_input.strip():
+                st.session_state.pending_user_input = user_input.strip()
 
     
     with col2:
