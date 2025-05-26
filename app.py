@@ -778,7 +778,7 @@ def chat_page():
     with col1:
        if st.button("💜 Send Message", use_container_width=True):
         if user_input.strip():
-        st.session_state.pending_user_input = user_input.strip()
+            st.session_state.pending_user_input = user_input.strip()
 
     
     with col2:
