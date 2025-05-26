@@ -1,13 +1,11 @@
 import streamlit as st
-from chatbot import ask_gemini
-from auth import GoogleAuthenticator,validate_google_email, handle_oauth_callback, get_query_params, reset_auth_state
+from chatbot import enhanced_ask_gemini
+from auth import GoogleAuthenticator, validate_google_email, handle_oauth_callback, reset_auth_state
 import datetime
 import time
 import re
 import json
 import os
-import requests
-from urllib.parse import urlencode, parse_qs
 import uuid
 
 # --- Streamlit Config ---
@@ -19,9 +17,8 @@ st.set_page_config(
 )
 
 # --- Google OAuth Configuration ---
-GOOGLE_CLIENT_ID = "915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps." 
-
-GOOGLE_CLIENT_SECRET =  "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" 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI = "https://nby3lhwfkpzxcdkiixxjfq.streamlit.app/"
 
 # Initialize Google Authenticator
@@ -481,6 +478,18 @@ def get_chat_title(chat_history):
         return first_message[:50] + "..." if len(first_message) > 50 else first_message
     return "New Chat"
 
+def get_query_params():
+    """Safely get query parameters"""
+    try:
+        # Try new method first (Streamlit >= 1.30)
+        return dict(st.query_params)
+    except AttributeError:
+        try:
+            # Fallback for older versions
+            return st.experimental_get_query_params()
+        except:
+            return {}
+
 def login_page():
     """Enhanced login page with cleaner OAuth integration"""
     
@@ -496,7 +505,7 @@ def login_page():
         st.success(f"Welcome back, {st.session_state.name}! 🌟")
         st.rerun()
     
-    # Handle OAuth callback (no debug info shown)
+    # Handle OAuth callback
     oauth_result = handle_oauth_callback(google_auth)
     if oauth_result is True:
         return
@@ -531,19 +540,22 @@ def login_page():
         if st.button("🔵 Continue with Google", key="google_login", use_container_width=True):
             try:
                 auth_url = google_auth.get_authorization_url()
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-                st.info("Redirecting to Google authentication...")
-                st.markdown(f"[If not redirected automatically, click here]({auth_url})")
+                if auth_url:
+                    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+                    st.info("Redirecting to Google authentication...")
+                    st.markdown(f"[If not redirected automatically, click here]({auth_url})")
+                else:
+                    st.error("Failed to generate authentication URL. Please check OAuth configuration.")
             except Exception as e:
                 st.error(f"Google OAuth setup error: {str(e)}")
-                st.info("Please set up Google OAuth credentials in your environment variables.")
+                st.info("Please check your Google OAuth credentials.")
         
-        # Hidden debug section (only shown if specifically requested)
+        # Debug section (hidden by default)
         if st.session_state.get('show_debug', False):
             if st.checkbox("Show Debug Info", False, key="show_debug_info"):
                 st.write("Environment Variables:")
-                st.write(f"CLIENT_ID set: {'Yes' if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID != 'your_google_client_id_here' else 'No'}")
-                st.write(f"CLIENT_SECRET set: {'Yes' if GOOGLE_CLIENT_SECRET and GOOGLE_CLIENT_SECRET != 'your_google_client_secret_here' else 'No'}")
+                st.write(f"CLIENT_ID set: {'Yes' if GOOGLE_CLIENT_ID else 'No'}")
+                st.write(f"CLIENT_SECRET set: {'Yes' if GOOGLE_CLIENT_SECRET else 'No'}")
                 st.write(f"REDIRECT_URI: {REDIRECT_URI}")
                 
                 if st.button("Reset OAuth State"):
@@ -666,7 +678,6 @@ def chat_page():
                 is_active = chat_id == st.session_state.current_chat_id
                 
                 # Chat navigation card
-                card_class = "chat-nav-card active" if is_active else "chat-nav-card"
                 if st.button(f"{'🟢' if is_active else '💬'} {chat_title}", key=f"chat_{chat_id}", use_container_width=True):
                     if not is_active:
                         load_chat(chat_id)
@@ -715,135 +726,141 @@ def chat_page():
             st.session_state.page = "login"
             st.rerun()
 
-        # Chat summary
-        st.markdown("---")
-        st.subheader("📊 Chat Summary")
-        total_messages = len(st.session_state.chat_history)
-        total_chats = len(st.session_state.all_chats) + (1 if st.session_state.chat_history else 0)
-        st.caption(f"💬 Messages in current chat: {total_messages}")
-        st.caption(f"📚 Total chat sessions: {total_chats}")
-
     # Apply theme
-    st.markdown(light_theme if theme_mode == "Light Mode" else dark_theme, unsafe_allow_html=True)
+    if theme_mode == "Light Mode":
+        st.markdown(light_theme, unsafe_allow_html=True)
+    else:
+        st.markdown(dark_theme, unsafe_allow_html=True)
 
     # Main chat interface
-    current_chat_title = "New Chat"
-    if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.all_chats:
-        current_chat_title = st.session_state.all_chats[st.session_state.current_chat_id].get("title", "Current Chat")
-    elif st.session_state.chat_history:
-        current_chat_title = get_chat_title(st.session_state.chat_history)
+    st.title("💜 Asha AI - Your Career Companion")
+    st.markdown("*Empowering women to achieve their professional dreams*")
 
-    st.markdown(f"""
-    <div class="hero-section">
-        <h1>💬 {current_chat_title}</h1>
-        <h3>Hello {st.session_state.name or 'Queen'}! Ready to elevate your career? 👑</h3>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Personalized suggestions for new chats
-    if not st.session_state.chat_history:
-        st.markdown("### 💡 Personalized suggestions for you:")
-        
-        # Generate suggestions based on career stage and interests
-        if st.session_state.career_stage == "Student/Recent Graduate":
-            suggestions = [
-                "🎓 Entry-level opportunities in my field",
-                "📝 How to write my first professional resume",
-                "🌟 Skills I should develop as a new graduate"
-            ]
-        elif st.session_state.career_stage == "Career Changer":
-            suggestions = [
-                "🔄 How to transition to a new career field",
-                "📈 Transferable skills for career change",
-                "🎯 Industries welcoming to career changers"
-            ]
-        else:
-            suggestions = [
-                "🚀 Leadership opportunities for women",
-                "💰 Salary negotiation strategies",
-                "📊 Industry trends in my field"
-            ]
-        
-        col1, col2, col3 = st.columns(3)
-        for i, suggestion in enumerate(suggestions):
-            with [col1, col2, col3][i]:
-                if st.button(suggestion, key=f"suggestion_{i}"):
-                    # Remove emoji and process as user input
-                    clean_suggestion = suggestion.split(" ", 1)[1]
-                    process_user_input(clean_suggestion)
+    # Welcome message for new users
+    if not st.session_state.chat_history and not st.session_state.current_chat_id:
+        st.markdown(f"""
+        <div class="hero-section">
+            <h3>👋 Hello {st.session_state.name or 'Beautiful'}!</h3>
+            <p>I'm Asha, your AI career companion. I'm here to help you navigate your professional journey with confidence and strength.</p>
+            <p>💡 <strong>Pro tip:</strong> Try asking me about career advice, resume building, salary negotiation, or finding opportunities specifically for women!</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Chat display with enhanced styling
-    chat_placeholder = st.container()
-    with chat_placeholder:
-        st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
-        
+    # Display chat history
+    if st.session_state.chat_history:
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         for i, (sender, message) in enumerate(st.session_state.chat_history):
-            bubble_class = 'user-bubble' if sender == 'user' else 'bot-bubble'
-            emoji = '👩‍💼' if sender == 'user' else '🤖'
             timestamp = st.session_state.chat_dates[i] if i < len(st.session_state.chat_dates) else ""
             
-            st.markdown(f"""
-            <div class='chat-bubble {bubble_class}'>
-                {emoji} {message}
-                <br><small style='opacity: 0.8; font-weight: 400;'>{timestamp}</small>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+            if sender == "user":
+                st.markdown(f"""
+                <div class="chat-bubble user-bubble">
+                    <strong>You:</strong> {message}
+                    <br><small style="opacity: 0.8;">{timestamp}</small>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="chat-bubble bot-bubble">
+                    <strong>Asha:</strong> {message}
+                    <br><small style="opacity: 0.8;">{timestamp}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Enhanced chat input
-    user_input = st.chat_input("💭 Ask about careers, opportunities, skills, or anything to advance your professional journey...")
-
+    # Chat input
+    user_input = st.chat_input("Ask me anything about your career journey... 💪")
+    
     if user_input:
         process_user_input(user_input)
 
 def process_user_input(user_input):
-    """Enhanced input processing with better context and chat management"""
-    # Create new chat if this is the first message
-    if not st.session_state.current_chat_id and not st.session_state.chat_history:
-        create_new_chat()
-    
-    timestamp = datetime.datetime.now().strftime("%d-%b %H:%M")
-    st.session_state.chat_history.append(("user", user_input))
-    st.session_state.chat_dates.append(timestamp)
-
-    # Enhanced conversation context
-    st.session_state.conversation_context.append(user_input)
-    if len(st.session_state.conversation_context) > 20:
-        st.session_state.conversation_context = st.session_state.conversation_context[-20:]
-
-    # Show thinking indicator
-    with st.spinner('🤖 Asha AI is crafting a personalized response for you...'):
-        try:
-            # Pass enhanced context to chatbot
-            response = ask_gemini(
-                user_input
-            )
-        except Exception as e:
-            response = f"I apologize, but I'm experiencing some technical difficulties. This might be due to API limits or network issues. Please try again in a moment. 🌟\n\nError details: {str(e)}"
-
-    st.session_state.chat_history.append(("bot", response))
-    st.session_state.chat_dates.append(timestamp)
-    
-    # Save data after each interaction
-    save_user_data()
-    st.rerun()
-
-# --- Main Controller ---
-def main():
-    """Main application controller"""
+    """Process user input and generate AI response"""
     try:
-        # Hidden debug toggle (accessible via URL parameter or session state)
-        if 'debug' in st.experimental_get_query_params() or st.session_state.get('show_debug'):
-            st.session_state.show_debug = False
+        # Add user message to chat
+        timestamp = datetime.datetime.now().strftime("%I:%M %p")
+        st.session_state.chat_history.append(("user", user_input))
+        st.session_state.chat_dates.append(timestamp)
         
-        if st.session_state.page == "login":
-            login_page()
-        elif st.session_state.page == "chat":
-            chat_page()
+        # Build context for the AI
+        context = f"""
+        User Profile:
+        - Name: {st.session_state.name}
+        - Email: {st.session_state.email}
+        - Career Stage: {st.session_state.career_stage}
+        - Interests: {', '.join(st.session_state.interests)}
+        
+        You are Asha AI, a career companion specifically designed to empower women in their professional journeys. 
+        You should:
+        1. Be supportive, encouraging, and empowering
+        2. Provide practical career advice
+        3. Consider unique challenges women face in the workplace
+        4. Offer resources and opportunities specifically for women
+        5. Be professional but warm and approachable
+        6. Use encouraging language and emojis appropriately
+        
+        Recent conversation context:
+        {' '.join([f"{sender}: {msg}" for sender, msg in st.session_state.conversation_context[-10:]])}
+        
+        Current user question: {user_input}
+        """
+        
+        # Show thinking indicator
+        with st.spinner("Asha is thinking... 💭"):
+            # Get AI response
+            ai_response = enhanced_ask_gemini(context)
+            
+            if ai_response:
+                # Add AI response to chat
+                st.session_state.chat_history.append(("assistant", ai_response))
+                st.session_state.chat_dates.append(timestamp)
+                
+                # Update conversation context
+                st.session_state.conversation_context.extend([
+                    ("user", user_input),
+                    ("assistant", ai_response)
+                ])
+                
+                # Keep context manageable (last 20 exchanges)
+                if len(st.session_state.conversation_context) > 40:
+                    st.session_state.conversation_context = st.session_state.conversation_context[-40:]
+                
+                # Create new chat session if this is the first message
+                if not st.session_state.current_chat_id:
+                    st.session_state.current_chat_id = str(uuid.uuid4())
+            else:
+                st.session_state.chat_history.append(("assistant", "I apologize, but I'm having trouble connecting right now. Please try again in a moment! 💜"))
+                st.session_state.chat_dates.append(timestamp)
+        
+        # Save user data
+        save_user_data()
+        st.rerun()
+        
     except Exception as e:
-        st.error(f"Application error: {str(e)}")
-        st.info("Please refresh the page and try again.")
+        st.error(f"Oops! Something went wrong: {str(e)}")
+        # Add error message to chat
+        timestamp = datetime.datetime.now().strftime("%I:%M %p")
+        st.session_state.chat_history.append(("assistant", "I'm sorry, I encountered an technical issue. Please try asking your question again! 💜"))
+        st.session_state.chat_dates.append(timestamp)
+        save_user_data()
 
+def main():
+    """Main application logic"""
+    # Initialize chat session if needed
+    if st.session_state.logged_in and not st.session_state.current_chat_id and not st.session_state.chat_history:
+        st.session_state.current_chat_id = str(uuid.uuid4())
+    
+    # Page routing
+    if st.session_state.page == "login" or not st.session_state.logged_in:
+        login_page()
+    elif st.session_state.page == "chat" and st.session_state.logged_in:
+        chat_page()
+    else:
+        # Fallback to login
+        st.session_state.page = "login"
+        st.session_state.logged_in = False
+        st.rerun()
+
+# Run the application
 if __name__ == "__main__":
     main()
