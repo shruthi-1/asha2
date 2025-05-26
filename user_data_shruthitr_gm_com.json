@@ -1,0 +1,26 @@
+{
+  "email": "shruthitr@gm.com",
+  "name": "shruthi t r",
+  "chat_history": [
+    [
+      "user",
+      "Leadership opportunities for women"
+    ],
+    [
+      "bot",
+      "I apologize, but I'm experiencing some technical difficulties. This might be due to API limits or network issues. Please try again in a moment. 🌟\n\nError details: string indices must be integers, not 'str'"
+    ]
+  ],
+  "chat_dates": [
+    "25-May 23:25",
+    "25-May 23:25"
+  ],
+  "conversation_context": [
+    "Leadership opportunities for women"
+  ],
+  "career_stage": "",
+  "interests": [],
+  "profile_picture": null,
+  "all_chats": {},
+  "current_chat_id": "bfc44f54-259c-49a7-8cdc-f6c6ab13e910"
+}
