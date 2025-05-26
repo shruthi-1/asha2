@@ -391,9 +391,7 @@ h1, h2, h3 {
 }
 </style>
 """
-    if st.session_state.get("pending_user_input"):
-        process_user_input(st.session_state.pending_user_input)
-        st.session_state.pending_user_input = None
+
 
 def save_user_data():
     """Enhanced save function with session state storage for cloud deployment"""
