@@ -41,7 +41,8 @@ def init_session_state():
         "user_info": None,
         "current_chat_id": None,
         "all_chats": {},
-        "processing": False  # Prevent multiple processing
+        "processing": False,  # Prevent multiple processing
+        "message_processed": False  # Track if current message was processed
     }
     
     for key, default in defaults.items():
@@ -117,6 +118,26 @@ def apply_theme():
         box-shadow: 0 6px 20px rgba(255, 107, 157, 0.5) !important;
     }
     
+    /* Chat bubbles */
+    .chat-bubble {
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 15px;
+        max-width: 80%;
+    }
+    
+    .user-bubble {
+        background: linear-gradient(45deg, #ff6b9d, #c147d6);
+        margin-left: auto;
+        text-align: right;
+    }
+    
+    .bot-bubble {
+        background: rgba(45, 27, 61, 0.8);
+        border: 1px solid #ff6b9d;
+        margin-right: auto;
+    }
+    
     /* Metrics and info boxes */
     .metric-container, [data-testid="metric-container"] {
         background: linear-gradient(135deg, rgba(255, 107, 157, 0.1), rgba(193, 71, 214, 0.1)) !important;
@@ -134,126 +155,6 @@ def apply_theme():
         border-radius: 8px !important;
     }
     
-    /* Dataframes and tables */
-    .dataframe {
-        background-color: #2d1b3d !important;
-        color: #ffffff !important;
-        border: 1px solid #ff6b9d !important;
-    }
-    
-    .dataframe th {
-        background: linear-gradient(45deg, #ff6b9d, #c147d6) !important;
-        color: white !important;
-        font-weight: bold !important;
-    }
-    
-    .dataframe td {
-        background-color: rgba(45, 27, 61, 0.5) !important;
-        color: #ffffff !important;
-        border-bottom: 1px solid rgba(255, 107, 157, 0.2) !important;
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(45, 27, 61, 0.5) !important;
-        border-radius: 10px !important;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: transparent !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(255, 107, 157, 0.2) !important;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(45deg, #ff6b9d, #c147d6) !important;
-        color: white !important;
-    }
-    
-    /* Progress bars */
-    .stProgress .st-bo {
-        background: linear-gradient(90deg, #ff6b9d, #c147d6) !important;
-    }
-    
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background: rgba(45, 27, 61, 0.6) !important;
-        color: #ff6b9d !important;
-        border: 1px solid #ff6b9d !important;
-        border-radius: 8px !important;
-    }
-    
-    .streamlit-expanderContent {
-        background: rgba(26, 13, 46, 0.8) !important;
-        border: 1px solid rgba(255, 107, 157, 0.2) !important;
-        border-radius: 0 0 8px 8px !important;
-    }
-    
-    /* Selectbox dropdown */
-    .stSelectbox [data-baseweb="select"] {
-        background-color: #2d1b3d !important;
-        border: 2px solid #ff6b9d !important;
-    }
-    
-    /* File uploader */
-    .stFileUploader section {
-        background: rgba(45, 27, 61, 0.5) !important;
-        border: 2px dashed #ff6b9d !important;
-        border-radius: 12px !important;
-    }
-    
-    /* Checkbox and radio */
-    .stCheckbox label, .stRadio label {
-        color: #ffffff !important;
-    }
-    
-    /* Slider */
-    .stSlider .st-bf {
-        background: linear-gradient(90deg, #ff6b9d, #c147d6) !important;
-    }
-    
-    /* Code blocks */
-    .stCodeBlock {
-        background-color: #1a0d2e !important;
-        border: 1px solid #ff6b9d !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-        width: 12px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #1a0d2e;
-        border-radius: 6px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(45deg, #ff6b9d, #c147d6);
-        border-radius: 6px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(45deg, #c147d6, #ff6b9d);
-    }
-    
-    /* High contrast links */
-    a {
-        color: #ff6b9d !important;
-        text-decoration: none !important;
-        font-weight: bold !important;
-    }
-    
-    a:hover {
-        color: #c147d6 !important;
-        text-shadow: 0 0 5px rgba(193, 71, 214, 0.5) !important;
-    }
-    
     /* Remove Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -261,6 +162,7 @@ def apply_theme():
     
     </style>
     """, unsafe_allow_html=True)
+
 # --- Data Management ---
 def save_user_data():
     if st.session_state.email:
@@ -299,6 +201,7 @@ def create_new_chat():
     
     st.session_state.current_chat_id = str(uuid.uuid4())
     st.session_state.chat_history = []
+    st.session_state.message_processed = False
     save_user_data()
 
 def load_chat(chat_id):
@@ -313,6 +216,7 @@ def load_chat(chat_id):
         chat_data = st.session_state.all_chats[chat_id]
         st.session_state.current_chat_id = chat_id
         st.session_state.chat_history = chat_data["history"]
+        st.session_state.message_processed = False
         save_user_data()
 
 def get_chat_title(chat_history):
@@ -393,6 +297,7 @@ def login_page():
                     st.session_state.career_stage = career_stage
                     st.session_state.interests = interests
                     st.session_state.page = "chat"
+                    st.session_state.message_processed = False
                     load_user_data()
                     save_user_data()
                     st.rerun()
@@ -452,14 +357,16 @@ def chat_page():
         ]
         
         for button_text, prompt in quick_actions:
-            # Use unique keys to prevent conflicts
             if st.button(button_text, key=f"quick_{hash(prompt)}", use_container_width=True):
-                if not st.session_state.processing:
-                    process_user_input(prompt)
+                # Set the message to be processed on next run
+                st.session_state.pending_message = prompt
+                st.session_state.message_processed = False
+                st.rerun()
 
         st.markdown("---")
         if st.button("🧹 Clear Chat", use_container_width=True):
             st.session_state.chat_history.clear()
+            st.session_state.message_processed = False
             save_user_data()
             st.rerun()
         
@@ -470,6 +377,11 @@ def chat_page():
                 st.session_state.pop(key, None)
             st.session_state.page = "login"
             st.rerun()
+
+    # Process pending message from quick actions
+    if hasattr(st.session_state, 'pending_message') and not st.session_state.message_processed:
+        process_user_input(st.session_state.pending_message)
+        del st.session_state.pending_message
 
     # Main chat interface
     st.title("💜 Asha AI - Your Career Companion")
@@ -498,31 +410,37 @@ def chat_page():
             </div>
             """, unsafe_allow_html=True)
 
-    # Chat input - Using form to prevent multiple submissions
+    # Chat input
     st.markdown("---")
-    with st.form("chat_form", clear_on_submit=True):
+    
+    # Create a unique key for the form based on chat history length
+    form_key = f"chat_form_{len(st.session_state.chat_history)}"
+    
+    with st.form(form_key, clear_on_submit=True):
         user_input = st.text_area(
             "💬 Ask me anything:",
             placeholder="Ask about career advice, job opportunities, resume tips...",
-            height=100
+            height=100,
+            key=f"user_input_{len(st.session_state.chat_history)}"
         )
         
         col1, col2 = st.columns([3, 1])
         with col1:
             submitted = st.form_submit_button("💜 Send Message", use_container_width=True)
         with col2:
-            if st.form_submit_button("🧹 Clear", use_container_width=True):
-                pass  # Form already clears on submit
+            clear_input = st.form_submit_button("🧹 Clear", use_container_width=True)
         
         if submitted and user_input.strip() and not st.session_state.processing:
             process_user_input(user_input.strip())
 
 def process_user_input(user_message):
-    """Process user input - FIXED to prevent multiple responses"""
-    if st.session_state.processing:
+    """Process user input - FIXED to prevent infinite loops"""
+    # Prevent processing if already processing or message already processed
+    if st.session_state.processing or st.session_state.message_processed:
         return
     
     st.session_state.processing = True
+    st.session_state.message_processed = True
     
     try:
         # Ensure chat session exists
@@ -553,7 +471,7 @@ def process_user_input(user_message):
     
     finally:
         st.session_state.processing = False
-        st.rerun()
+        # Don't call st.rerun() here - let Streamlit handle the natural flow
 
 # --- Main App ---
 def main():
