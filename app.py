@@ -396,24 +396,6 @@ def chat_page():
             <p>I'm Asha, your AI career companion. I'm here to help you navigate your professional journey with confidence!</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Add an initial context-setting message to chat history
-        initial_context = f"""Hello {st.session_state.name or 'there'}! 👋
-
-I'm Asha, your AI career companion designed specifically to empower women in their professional journeys. I'm here to help you with:
-
-🎯 **Career Planning & Strategy**
-📄 **Resume & Interview Preparation** 
-💼 **Job Search & Networking**
-💪 **Salary Negotiation & Workplace Confidence**
-🎓 **Skill Development & Learning Opportunities**
-🌟 **Work-Life Balance & Leadership Growth**
-
-I see you're {st.session_state.career_stage.lower() if st.session_state.career_stage else 'exploring your career options'}{f" with interests in {', '.join(st.session_state.interests)}" if st.session_state.interests else ""}. 
-
-I'll remember our conversation as we chat, so feel free to reference previous topics or ask follow-up questions. What would you like to explore first in your career journey?"""
-        
-        st.session_state.chat_history.append(("assistant", initial_context))
 
     # Display chat history
     for role, message in st.session_state.chat_history:
