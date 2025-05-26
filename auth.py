@@ -11,6 +11,7 @@ import os
 import time
 from dotenv import load_dotenv
 from knowledgebase import asha_topics
+st.query_params.clear()
 
 load_dotenv(dotenv_path="C:/Users/shrut/OneDrive/Desktop/asha/.env")
 load_dotenv()
