@@ -4,13 +4,15 @@ from dotenv import load_dotenv
 from knowledgebase import asha_topics
 
 load_dotenv()
-api_key = os.getenv("API_KEY")
+api_key = "AIzaSyCouQ8ADashL2eenj6vTvepy9ufM6xV3dA"
 if not api_key:
     raise ValueError("❌ API Key not found. Please create a .env file with API_KEY=your_key")
 
-# --- Initialize Gemini Client ---
+
+
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
+
 
 def is_topic_found(query):
     query_lower = query.lower()
