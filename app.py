@@ -391,6 +391,9 @@ h1, h2, h3 {
 }
 </style>
 """
+if st.session_state.get("pending_user_input"):
+    process_user_input(st.session_state.pending_user_input)
+    st.session_state.pending_user_input = None
 
 def save_user_data():
     """Enhanced save function with session state storage for cloud deployment"""
@@ -666,7 +669,7 @@ def chat_page():
                 if st.button(f"{'🟢' if is_active else '💬'} {chat_title}", key=f"chat_{chat_id}", use_container_width=True):
                     if not is_active:
                         load_chat(chat_id)
-                        st.rerun()
+                        
 
         # Settings
         st.markdown("---")
@@ -775,9 +778,10 @@ def chat_page():
     
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        if st.button("💜 Send Message", use_container_width=True):
-            if user_input.strip():
-                process_user_input(user_input)
+       if st.button("💜 Send Message", use_container_width=True):
+        if user_input.strip():
+        st.session_state.pending_user_input = user_input.strip()
+
     
     with col2:
         if st.button("🎤 Voice Input", use_container_width=True):
