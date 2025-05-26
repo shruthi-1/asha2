@@ -971,7 +971,6 @@ def handle_app_error():
                
         with col2:
             if st.button("🏠 Go to Home"):
-                # Clear problematic state
                 problematic_keys = ['chat_history', 'all_chats', 'conversation_context']
                 for key in problematic_keys:
                     st.session_state.pop(key, None)
