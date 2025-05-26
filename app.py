@@ -418,7 +418,7 @@ def chat_page():
     # Use a container to isolate the form
     chat_container = st.container()
     with chat_container:
-        with st.form("chat_input_form", border=False):
+        with st.form("chat_input_form"):
             user_input = st.text_area(
                 "💬 Ask me anything:",
                 placeholder="Ask about career advice, job opportunities, resume tips...",
