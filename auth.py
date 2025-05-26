@@ -178,7 +178,7 @@ class GoogleAuthenticator:
         else:
             raise Exception(f"Failed to get user info: {response.status_code}")
 
-def enhanced_oauth_login():
+def enhanced_oauth_login(authenticator=None):
     """Enhanced OAuth login with better error handling"""
     
     # Check if credentials are configured
@@ -194,7 +194,9 @@ def enhanced_oauth_login():
         """)
         return False
     
-    authenticator = GoogleAuthenticator(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+    # Create authenticator if not provided
+    if authenticator is None:
+        authenticator = GoogleAuthenticator(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
     
     # Handle OAuth callback first
     callback_result = handle_oauth_callback(authenticator)
@@ -207,12 +209,22 @@ def enhanced_oauth_login():
     st.markdown("### 🔐 Authentication Required")
     st.markdown("Please sign in with your Google account to continue.")
     
-    if st.button("🔵 Sign in with Google", type="primary", use_container_width=True):
-        auth_url = authenticator.get_authorization_url()
-        if auth_url:
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-            st.info("🔄 Redirecting to Google for authentication...")
-            st.markdown(f"**[Click here if not redirected automatically]({auth_url})**")
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        if st.button("🔵 Sign in with Google", type="primary", use_container_width=True):
+            auth_url = authenticator.get_authorization_url()
+            if auth_url:
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+                st.info("🔄 Redirecting to Google for authentication...")
+                st.markdown(f"**[Click here if not redirected automatically]({auth_url})**")
+    
+    with col2:
+        if st.button("🔗 Direct Login Link", use_container_width=True):
+            authenticator_temp = GoogleAuthenticator(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+            auth_url = authenticator_temp.get_authorization_url()
+            if auth_url:
+                st.markdown(f"**[Open Google Login]({auth_url})**")
     
     return False
 
@@ -337,6 +349,15 @@ def debug_oauth_setup():
     
     if st.button("🔄 Reset Authentication"):
         logout()
+
+# Legacy function names for backward compatibility
+def reset_auth_state():
+    """Reset authentication state - legacy function name"""
+    logout()
+
+def handle_oauth_callback_legacy(authenticator):
+    """Legacy function name for backward compatibility"""
+    return handle_oauth_callback(authenticator)
 
 # Main authentication function to use in your app
 def require_auth():
