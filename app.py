@@ -968,6 +968,7 @@ def handle_app_error():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 Refresh Page"):
+                st.rerun()
                
         with col2:
             if st.button("🏠 Go to Home"):
