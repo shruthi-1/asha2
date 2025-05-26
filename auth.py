@@ -16,7 +16,7 @@ load_dotenv(dotenv_path="C:/Users/shrut/OneDrive/Desktop/asha/.env")
 load_dotenv()
 
 # OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID = 915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 model = "gemini-1.5"
 
