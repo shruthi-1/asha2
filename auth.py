@@ -54,10 +54,10 @@ def get_streamlit_url():
     return "http://localhost:8501"
 
 class GoogleAuthenticator:
-    def __init__(self, client_id, client_secret):
+    def __init__(self, client_id, client_secret,redirect_uri):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.redirect_uri = get_streamlit_url()
+        self.redirect_uri = redirect_uri
         self.scopes = [
             'openid',
             'https://www.googleapis.com/auth/userinfo.email',
