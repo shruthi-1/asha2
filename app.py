@@ -22,7 +22,7 @@ st.set_page_config(
 GOOGLE_CLIENT_ID = "915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps." 
 
 GOOGLE_CLIENT_SECRET =  "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" 
-REDIRECT_URI = https://nby3lhwfkpzxcdkiixxjfq.streamlit.app/
+REDIRECT_URI = "https://nby3lhwfkpzxcdkiixxjfq.streamlit.app/"
 
 # Initialize Google Authenticator
 google_auth = GoogleAuthenticator(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIRECT_URI)
