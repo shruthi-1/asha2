@@ -5,6 +5,9 @@ import datetime
 import time
 import re
 import json
+import os
+import requests
+from urllib.parse import urlencode, parse_qs
 import uuid
 
 # --- Streamlit Config ---
@@ -708,6 +711,14 @@ def chat_page():
             st.session_state.page = "login"
             st.rerun()
 
+        # Chat summary
+        st.markdown("---")
+        st.subheader("📊 Chat Summary")
+        total_messages = len(st.session_state.chat_history)
+        total_chats = len(st.session_state.all_chats) + (1 if st.session_state.chat_history else 0)
+        st.caption(f"💬 Messages in current chat: {total_messages}")
+        st.caption(f"📚 Total chat sessions: {total_chats}")
+
     # Apply theme
     if theme_mode == "Light Mode":
         st.markdown(light_theme, unsafe_allow_html=True)
@@ -845,7 +856,7 @@ def process_user_input(user_message):
         # Show loading spinner
         with st.spinner("🌸 Asha is thinking..."):
             # Generate AI response
-            response = enhanced_ask_gemini(context, st.session_state.conversation_context)
+            response = ask_gemini(context, st.session_state.conversation_context)
             
             if response:
                 # Add AI response to chat
