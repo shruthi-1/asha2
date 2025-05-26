@@ -19,8 +19,9 @@ st.set_page_config(
 )
 
 # --- Google OAuth Configuration ---
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "your_google_client_id_here")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "your_google_client_secret_here")
+GOOGLE_CLIENT_ID = "915155637703-pgj1r71gbctmk0018s8dif1gugf3ld0k.apps." 
+
+GOOGLE_CLIENT_SECRET =  "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" 
 REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8501")
 
 # Initialize Google Authenticator
