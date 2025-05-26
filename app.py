@@ -298,7 +298,11 @@ def chat_page():
     apply_theme()
     
     # IMPORTANT: Reset message_processed flag so new messages can be sent
-    st.session_state.message_processed = False
+    # But only if enough time has passed since last processing
+    current_time = time.time()
+    if (st.session_state.processing_timestamp is None or 
+        (current_time - st.session_state.processing_timestamp) > 3):
+        st.session_state.message_processed = False
     
     # Clear input if needed
     if st.session_state.get("input_cleared", False):
@@ -436,8 +440,15 @@ def chat_page():
             
             # Process the message if send was clicked
             if send_clicked and user_input.strip():
-                if handle_user_message(user_input.strip()):
+                processed = handle_user_message(user_input.strip())
+                if processed:
                     # Clear input after successful processing
+                    st.session_state.input_cleared = True
+                    # Add a small delay to prevent immediate reprocessing
+                    time.sleep(0.1)
+                    st.rerun()
+                elif processed is False and st.session_state.last_processed_message == user_input.strip():
+                    # Message was blocked from reprocessing - just clear input
                     st.session_state.input_cleared = True
                     st.rerun()
 
@@ -447,6 +458,14 @@ def handle_quick_action(message):
     print(f"Quick Action - Processing Message: {message}")
     print(f"Last Processed: {st.session_state.last_processed_message}")
     print(f"Message Processed Flag: {st.session_state.message_processed}")
+    
+    # Check if this exact message was already processed recently (within 2 seconds)
+    current_time = time.time()
+    if (st.session_state.last_processed_message == message and 
+        st.session_state.processing_timestamp and 
+        (current_time - st.session_state.processing_timestamp) < 2):
+        print(f"BLOCKING: Same quick action processed recently")
+        return False
     
     if not st.session_state.message_processed and message != st.session_state.last_processed_message:
         st.session_state.message_processed = True
@@ -459,6 +478,14 @@ def handle_user_message(message):
     print(f"User Message - Processing Message: {message}")
     print(f"Last Processed: {st.session_state.last_processed_message}")
     print(f"Message Processed Flag: {st.session_state.message_processed}")
+    
+    # Check if this exact message was already processed recently (within 2 seconds)
+    current_time = time.time()
+    if (st.session_state.last_processed_message == message and 
+        st.session_state.processing_timestamp and 
+        (current_time - st.session_state.processing_timestamp) < 2):
+        print(f"BLOCKING: Same message processed recently")
+        return False
     
     if not st.session_state.message_processed and message.strip():
         st.session_state.message_processed = True
