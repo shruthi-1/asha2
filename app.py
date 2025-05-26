@@ -4,6 +4,7 @@ from auth import GoogleAuthenticator, validate_google_email, handle_oauth_callba
 import datetime
 import re
 import uuid
+import time
 
 # --- Streamlit Config ---
 st.set_page_config(
@@ -41,8 +42,8 @@ def init_session_state():
         "user_info": None,
         "current_chat_id": None,
         "all_chats": {},
-        "processing": False,  # Prevent multiple processing
-        "message_processed": False  # Track if current message was processed
+        "last_processed_message": None,  # Track last processed message
+        "processing_timestamp": None     # Track when processing started
     }
     
     for key, default in defaults.items():
@@ -138,23 +139,6 @@ def apply_theme():
         margin-right: auto;
     }
     
-    /* Metrics and info boxes */
-    .metric-container, [data-testid="metric-container"] {
-        background: linear-gradient(135deg, rgba(255, 107, 157, 0.1), rgba(193, 71, 214, 0.1)) !important;
-        border: 2px solid #ff6b9d !important;
-        border-radius: 12px !important;
-        padding: 1rem !important;
-        backdrop-filter: blur(5px) !important;
-    }
-    
-    /* Success/Info/Warning/Error messages */
-    .stSuccess, .stInfo, .stWarning, .stError {
-        background: rgba(45, 27, 61, 0.8) !important;
-        border-left: 4px solid #ff6b9d !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-    }
-    
     /* Remove Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -201,7 +185,7 @@ def create_new_chat():
     
     st.session_state.current_chat_id = str(uuid.uuid4())
     st.session_state.chat_history = []
-    st.session_state.message_processed = False
+    st.session_state.last_processed_message = None
     save_user_data()
 
 def load_chat(chat_id):
@@ -216,7 +200,7 @@ def load_chat(chat_id):
         chat_data = st.session_state.all_chats[chat_id]
         st.session_state.current_chat_id = chat_id
         st.session_state.chat_history = chat_data["history"]
-        st.session_state.message_processed = False
+        st.session_state.last_processed_message = None
         save_user_data()
 
 def get_chat_title(chat_history):
@@ -297,7 +281,7 @@ def login_page():
                     st.session_state.career_stage = career_stage
                     st.session_state.interests = interests
                     st.session_state.page = "chat"
-                    st.session_state.message_processed = False
+                    st.session_state.last_processed_message = None
                     load_user_data()
                     save_user_data()
                     st.rerun()
@@ -331,7 +315,7 @@ def chat_page():
         # Chat management
         st.markdown("### 💬 Chat Sessions")
         
-        if st.button("➕ New Chat", use_container_width=True):
+        if st.button("➕ New Chat", use_container_width=True, key="new_chat_btn"):
             create_new_chat()
             st.rerun()
         
@@ -342,46 +326,45 @@ def chat_page():
                 is_active = chat_id == st.session_state.current_chat_id
                 
                 if st.button(f"{'🟢' if is_active else '💬'} {chat_title}", 
-                           key=f"chat_{chat_id}", use_container_width=True):
+                           key=f"load_chat_{chat_id}", use_container_width=True):
                     if not is_active:
                         load_chat(chat_id)
                         st.rerun()
 
         # Quick actions
         st.markdown("### 🚀 Quick Actions")
-        quick_actions = [
-            ("💼 Find Jobs", "Show me women-friendly job opportunities"),
-            ("📄 Resume Help", "Help me build a professional resume"),
-            ("🎓 Scholarships", "Tell me about scholarships for women"),
-            ("💪 Salary Tips", "Help me with salary negotiation"),
-        ]
         
-        for button_text, prompt in quick_actions:
-            if st.button(button_text, key=f"quick_{hash(prompt)}", use_container_width=True):
-                # Set the message to be processed on next run
-                st.session_state.pending_message = prompt
-                st.session_state.message_processed = False
+        if st.button("💼 Find Jobs", key="quick_jobs", use_container_width=True):
+            if handle_quick_action("Show me women-friendly job opportunities"):
+                st.rerun()
+        
+        if st.button("📄 Resume Help", key="quick_resume", use_container_width=True):
+            if handle_quick_action("Help me build a professional resume"):
+                st.rerun()
+        
+        if st.button("🎓 Scholarships", key="quick_scholarships", use_container_width=True):
+            if handle_quick_action("Tell me about scholarships for women"):
+                st.rerun()
+        
+        if st.button("💪 Salary Tips", key="quick_salary", use_container_width=True):
+            if handle_quick_action("Help me with salary negotiation"):
                 st.rerun()
 
         st.markdown("---")
-        if st.button("🧹 Clear Chat", use_container_width=True):
+        if st.button("🧹 Clear Chat", use_container_width=True, key="clear_chat_btn"):
             st.session_state.chat_history.clear()
-            st.session_state.message_processed = False
+            st.session_state.last_processed_message = None
             save_user_data()
             st.rerun()
         
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🚪 Logout", use_container_width=True, key="logout_btn"):
             save_user_data()
             # Clear auth session state
-            for key in ['page', 'logged_in', 'email', 'authenticated', 'user_info']:
-                st.session_state.pop(key, None)
+            for key in list(st.session_state.keys()):
+                if key in ['page', 'logged_in', 'email', 'authenticated', 'user_info', 'last_processed_message']:
+                    del st.session_state[key]
             st.session_state.page = "login"
             st.rerun()
-
-    # Process pending message from quick actions
-    if hasattr(st.session_state, 'pending_message') and not st.session_state.message_processed:
-        process_user_input(st.session_state.pending_message)
-        del st.session_state.pending_message
 
     # Main chat interface
     st.title("💜 Asha AI - Your Career Companion")
@@ -410,68 +393,89 @@ def chat_page():
             </div>
             """, unsafe_allow_html=True)
 
-    # Chat input
+    # Chat input form
     st.markdown("---")
     
-    # Create a unique key for the form based on chat history length
-    form_key = f"chat_form_{len(st.session_state.chat_history)}"
-    
-    with st.form(form_key, clear_on_submit=True):
-        user_input = st.text_area(
-            "💬 Ask me anything:",
-            placeholder="Ask about career advice, job opportunities, resume tips...",
-            height=100,
-            key=f"user_input_{len(st.session_state.chat_history)}"
-        )
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            submitted = st.form_submit_button("💜 Send Message", use_container_width=True)
-        with col2:
-            clear_input = st.form_submit_button("🧹 Clear", use_container_width=True)
-        
-        if submitted and user_input.strip() and not st.session_state.processing:
-            process_user_input(user_input.strip())
+    # Use a container to isolate the form
+    chat_container = st.container()
+    with chat_container:
+        with st.form("chat_input_form", border=False):
+            user_input = st.text_area(
+                "💬 Ask me anything:",
+                placeholder="Ask about career advice, job opportunities, resume tips...",
+                height=100,
+                key="chat_input"
+            )
+            
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                send_clicked = st.form_submit_button("💜 Send Message", use_container_width=True)
+            with col2:
+                clear_clicked = st.form_submit_button("🧹 Clear Input", use_container_width=True)
+            
+            # Process the message if send was clicked
+            if send_clicked and user_input.strip():
+                if handle_user_message(user_input.strip()):
+                    st.rerun()
 
-def process_user_input(user_message):
-    """Process user input - FIXED to prevent infinite loops"""
-    # Prevent processing if already processing or message already processed
-    if st.session_state.processing or st.session_state.message_processed:
-        return
-    
-    st.session_state.processing = True
-    st.session_state.message_processed = True
-    
+def handle_quick_action(message):
+    """Handle quick action button clicks"""
+    if message != st.session_state.last_processed_message:
+        return process_message(message)
+    return False
+
+def handle_user_message(message):
+    """Handle user input from the chat form"""
+    if message != st.session_state.last_processed_message:
+        return process_message(message)
+    return False
+
+def process_message(user_message):
+    """Process a user message and get AI response"""
     try:
+        # Track this message as processed
+        st.session_state.last_processed_message = user_message
+        st.session_state.processing_timestamp = time.time()
+        
         # Ensure chat session exists
         if not st.session_state.get("current_chat_id"):
             st.session_state.current_chat_id = str(uuid.uuid4())
 
-        # Add user message
+        # Add user message to history
         st.session_state.chat_history.append(("user", user_message))
 
-        # Get AI response
-        with st.spinner("🌸 Asha is thinking..."):
-            response = ask_gemini(user_message)
+        # Show loading message
+        loading_placeholder = st.empty()
+        loading_placeholder.info("🌸 Asha is thinking...")
 
-        if response:
-            # Add AI response
-            st.session_state.chat_history.append(("assistant", response))
-            save_user_data()
-        else:
-            st.error("Sorry, I couldn't generate a response. Please try again.")
-            # Remove the user message if no response
-            st.session_state.chat_history.pop()
+        # Get AI response
+        try:
+            response = ask_gemini(user_message)
+            loading_placeholder.empty()
+            
+            if response:
+                # Add AI response to history
+                st.session_state.chat_history.append(("assistant", response))
+                save_user_data()
+                return True
+            else:
+                st.error("Sorry, I couldn't generate a response. Please try again.")
+                # Remove the user message if no response
+                if st.session_state.chat_history and st.session_state.chat_history[-1][0] == "user":
+                    st.session_state.chat_history.pop()
+                return False
+                
+        except Exception as e:
+            loading_placeholder.empty()
+            st.error(f"An error occurred while getting response: {str(e)}")
+            # Remove the user message if error occurred
+            if st.session_state.chat_history and st.session_state.chat_history[-1][0] == "user":
+                st.session_state.chat_history.pop()
+            return False
 
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        # Remove the user message if error occurred
-        if st.session_state.chat_history and st.session_state.chat_history[-1][0] == "user":
-            st.session_state.chat_history.pop()
-    
-    finally:
-        st.session_state.processing = False
-        # Don't call st.rerun() here - let Streamlit handle the natural flow
+        st.error(f"An unexpected error occurred: {str(e)}")
+        return False
 
 # --- Main App ---
 def main():
@@ -485,6 +489,7 @@ def main():
             login_page()
     except Exception as e:
         st.error("An unexpected error occurred. Please refresh the page.")
+        st.error(f"Error details: {str(e)}")
         st.session_state.page = "login"
         if st.button("🔄 Refresh"):
             st.rerun()
