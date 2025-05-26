@@ -418,7 +418,7 @@ def chat_page():
     # Use a container to isolate the form
     chat_container = st.container()
     with chat_container:
-        with st.form("chat_input_form"):
+        with st.form("chat_input_form", border=False):
             user_input = st.text_area(
                 "💬 Ask me anything:",
                 placeholder="Ask about career advice, job opportunities, resume tips...",
@@ -510,11 +510,9 @@ def process_message(user_message):
         loading_placeholder = st.empty()
         loading_placeholder.info("🌸 Asha is thinking...")
 
-        # Get AI response with full context
+        # Get AI response
         try:
-            # Build conversation context
-            context = build_conversation_context()
-            response = ask_gemini_with_context(user_message, context)
+            response = ask_gemini(user_message)
             loading_placeholder.empty()
             
             if response:
@@ -540,71 +538,6 @@ def process_message(user_message):
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
         return False
-
-def build_conversation_context():
-    """Build conversation context from chat history and user profile"""
-    context = {
-        "user_profile": {
-            "name": st.session_state.get("name", ""),
-            "email": st.session_state.get("email", ""),
-            "career_stage": st.session_state.get("career_stage", ""),
-            "interests": st.session_state.get("interests", [])
-        },
-        "conversation_history": [],
-        "system_prompt": """You are Asha AI, an empowering career companion specifically designed to help women navigate their professional journeys. You are supportive, knowledgeable, and encouraging. 
-
-Key traits:
-- Provide practical, actionable career advice
-- Be encouraging and confidence-building
-- Consider gender-specific challenges women face in the workplace
-- Offer resources for women's professional development
-- Remember previous conversation context
-- Be warm, empathetic, and professional
-
-Always maintain context from previous messages in the conversation."""
-    }
-    
-    # Add recent conversation history (last 10 exchanges to avoid token limits)
-    recent_history = st.session_state.chat_history[-20:] if len(st.session_state.chat_history) > 20 else st.session_state.chat_history
-    
-    for role, message in recent_history:
-        context["conversation_history"].append({
-            "role": "user" if role == "user" else "assistant",
-            "content": message
-        })
-    
-    return context
-
-def ask_gemini_with_context(user_message, context):
-    """Enhanced function to call Gemini with full conversation context"""
-    try:
-        # Build the contextual prompt
-        contextual_prompt = f"""
-{context['system_prompt']}
-
-USER PROFILE:
-- Name: {context['user_profile']['name']}
-- Career Stage: {context['user_profile']['career_stage']}
-- Interests: {', '.join(context['user_profile']['interests']) if context['user_profile']['interests'] else 'Not specified'}
-
-CONVERSATION HISTORY:
-"""
-        
-        # Add conversation history
-        for msg in context['conversation_history'][:-1]:  # Exclude the current message
-            role_label = "You" if msg['role'] == "user" else "Asha"
-            contextual_prompt += f"{role_label}: {msg['content']}\n"
-        
-        # Add current message
-        contextual_prompt += f"\nCurrent User Message: {user_message}\n\nPlease respond as Asha, maintaining context from our conversation and the user's profile:"
-        
-        # Call the original ask_gemini function with contextual prompt
-        return ask_gemini(contextual_prompt)
-        
-    except Exception as e:
-        print(f"Error in ask_gemini_with_context: {str(e)}")
-        # Fallback to original function if context building fails
-        return ask_gemini(user_message)
 
 # --- Main App ---
 def main():
