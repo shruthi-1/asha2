@@ -169,12 +169,9 @@ def validate_google_email(email):
 def get_query_params():
     """Safe wrapper to get query parameters"""
     try:
-        return dict(st.query_params)
-    except AttributeError:
-        try:
-            return st.experimental_get_query_params()
-        except:
-            return {}
+        return st.experimental_get_query_params()
+    except Exception:
+        return {}
 
 def handle_oauth_callback(authenticator):
     """Enhanced OAuth callback handler with improved error handling"""
