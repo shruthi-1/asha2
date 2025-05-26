@@ -43,7 +43,9 @@ def init_session_state():
         "current_chat_id": None,
         "all_chats": {},
         "last_processed_message": None,  # Track last processed message
-        "processing_timestamp": None     # Track when processing started
+        "processing_timestamp": None,    # Track when processing started
+        "message_processed": False,      # NEW: Flag to prevent infinite processing
+        "input_cleared": False           # NEW: Flag for input clearing
     }
     
     for key, default in defaults.items():
@@ -186,6 +188,7 @@ def create_new_chat():
     st.session_state.current_chat_id = str(uuid.uuid4())
     st.session_state.chat_history = []
     st.session_state.last_processed_message = None
+    st.session_state.message_processed = False  # Reset processing flag
     save_user_data()
 
 def load_chat(chat_id):
@@ -201,6 +204,7 @@ def load_chat(chat_id):
         st.session_state.current_chat_id = chat_id
         st.session_state.chat_history = chat_data["history"]
         st.session_state.last_processed_message = None
+        st.session_state.message_processed = False  # Reset processing flag
         save_user_data()
 
 def get_chat_title(chat_history):
@@ -282,6 +286,7 @@ def login_page():
                     st.session_state.interests = interests
                     st.session_state.page = "chat"
                     st.session_state.last_processed_message = None
+                    st.session_state.message_processed = False  # Reset processing flag
                     load_user_data()
                     save_user_data()
                     st.rerun()
@@ -291,6 +296,14 @@ def login_page():
 # --- Chat Page ---
 def chat_page():
     apply_theme()
+    
+    # IMPORTANT: Reset message_processed flag so new messages can be sent
+    st.session_state.message_processed = False
+    
+    # Clear input if needed
+    if st.session_state.get("input_cleared", False):
+        st.session_state["chat_input"] = ""
+        st.session_state.input_cleared = False
     
     # Load user data
     if not st.session_state.chat_history and st.session_state.email:
@@ -354,6 +367,7 @@ def chat_page():
         if st.button("🧹 Clear Chat", use_container_width=True, key="clear_chat_btn"):
             st.session_state.chat_history.clear()
             st.session_state.last_processed_message = None
+            st.session_state.message_processed = False  # Reset processing flag
             save_user_data()
             st.rerun()
         
@@ -361,7 +375,8 @@ def chat_page():
             save_user_data()
             # Clear auth session state
             for key in list(st.session_state.keys()):
-                if key in ['page', 'logged_in', 'email', 'authenticated', 'user_info', 'last_processed_message']:
+                if key in ['page', 'logged_in', 'email', 'authenticated', 'user_info', 
+                          'last_processed_message', 'message_processed', 'input_cleared']:
                     del st.session_state[key]
             st.session_state.page = "login"
             st.rerun()
@@ -413,20 +428,40 @@ def chat_page():
             with col2:
                 clear_clicked = st.form_submit_button("🧹 Clear Input", use_container_width=True)
             
+            # Handle clear input button
+            if clear_clicked:
+                st.session_state.input_cleared = True
+                st.session_state.message_processed = True  # Prevent rerun processing
+                st.rerun()
+            
             # Process the message if send was clicked
             if send_clicked and user_input.strip():
                 if handle_user_message(user_input.strip()):
+                    # Clear input after successful processing
+                    st.session_state.input_cleared = True
                     st.rerun()
 
 def handle_quick_action(message):
     """Handle quick action button clicks"""
-    if message != st.session_state.last_processed_message:
+    # Debug print for troubleshooting
+    print(f"Quick Action - Processing Message: {message}")
+    print(f"Last Processed: {st.session_state.last_processed_message}")
+    print(f"Message Processed Flag: {st.session_state.message_processed}")
+    
+    if not st.session_state.message_processed and message != st.session_state.last_processed_message:
+        st.session_state.message_processed = True
         return process_message(message)
     return False
 
 def handle_user_message(message):
     """Handle user input from the chat form"""
-    if message != st.session_state.last_processed_message:
+    # Debug print for troubleshooting
+    print(f"User Message - Processing Message: {message}")
+    print(f"Last Processed: {st.session_state.last_processed_message}")
+    print(f"Message Processed Flag: {st.session_state.message_processed}")
+    
+    if not st.session_state.message_processed and message.strip():
+        st.session_state.message_processed = True
         return process_message(message)
     return False
 
