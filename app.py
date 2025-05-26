@@ -839,47 +839,45 @@ def process_user_input(user_message):
     """Process user input and generate AI response"""
     if not user_message.strip():
         return
-    
+
     # Ensure we have a current chat session
-    if not st.session_state.current_chat_id:
+    if not st.session_state.get("current_chat_id"):
         st.session_state.current_chat_id = str(uuid.uuid4())
-    
-    # Add user message to chat
+
+    # Add user message to chat history
     timestamp = datetime.datetime.now().strftime("%I:%M %p")
     st.session_state.chat_history.append(("user", user_message))
     st.session_state.chat_dates.append(timestamp)
-    
-    # Prepare context for AI
-    context = prepare_context(user_message)
-    
+
     try:
-        # Show loading spinner
         with st.spinner("🌸 Asha is thinking..."):
-            # Generate AI response
-            response = ask_gemini(context, st.session_state.conversation_context)
-            
+            # Ask Gemini with just one input (context handled inside)
+            response = ask_gemini(user_message)
+
             if response:
-                # Add AI response to chat
+                # Add assistant response to chat
                 st.session_state.chat_history.append(("assistant", response))
                 st.session_state.chat_dates.append(timestamp)
-                
-                # Update conversation context
+
+                # Update conversation context (handled inside ask_gemini, but you can log it here too if needed)
+                if "conversation_context" not in st.session_state:
+                    st.session_state.conversation_context = []
+
                 st.session_state.conversation_context.append({
                     "user": user_message,
                     "assistant": response,
                     "timestamp": timestamp
                 })
-                
-                # Keep only last 10 exchanges for context
-                if len(st.session_state.conversation_context) > 10:
-                    st.session_state.conversation_context = st.session_state.conversation_context[-10:]
-                
-                # Save data and rerun
+
+                # Keep only the last 10 exchanges
+                st.session_state.conversation_context = st.session_state.conversation_context[-10:]
+
+                # Save and rerun
                 save_user_data()
                 st.rerun()
             else:
                 st.error("Sorry, I couldn't generate a response. Please try again.")
-    
+
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         if st.session_state.get("show_debug", False):
