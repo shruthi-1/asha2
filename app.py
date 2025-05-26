@@ -1,5 +1,5 @@
 import streamlit as st
-from chatbot import enhanced_ask_gemini
+from chatbot import ask_gemini
 from auth import GoogleAuthenticator, validate_google_email, handle_oauth_callback, reset_auth_state
 import datetime
 import time
