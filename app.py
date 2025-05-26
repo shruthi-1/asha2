@@ -833,7 +833,7 @@ def main():
     """Main application controller"""
     try:
         # Hidden debug toggle (accessible via URL parameter or session state)
-        if 'debug' in st.query_params or st.session_state.get('show_debug'):
+        if 'debug' in st.experimental_get_query_params() or st.session_state.get('show_debug'):
             st.session_state.show_debug = False
         
         if st.session_state.page == "login":
