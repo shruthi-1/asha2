@@ -575,7 +575,6 @@ def login_page():
                 load_user_data()
                 save_user_data()
                 st.success(f"Welcome {st.session_state.name or 'Queen'}! 👑")
-                st.rerun()
             else:
                 st.error("Please enter a valid email address.")
 
@@ -654,7 +653,6 @@ def chat_page():
         # New Chat Button
         if st.button("➕ Create New Chat", use_container_width=True):
             create_new_chat()
-            st.rerun()
         
         # Display existing chats
         if st.session_state.all_chats:
@@ -697,7 +695,7 @@ def chat_page():
             st.session_state.conversation_context.clear()
             save_user_data()
             st.success("Current chat cleared!")
-            st.rerun()
+    
 
         if st.button("🚪 Logout", use_container_width=True):
             save_user_data()
@@ -710,8 +708,7 @@ def chat_page():
             for key in auth_keys:
                 st.session_state.pop(key, None)
             st.session_state.page = "login"
-            st.rerun()
-            
+       
         if st.session_state.get("pending_user_input"):
             process_user_input(st.session_state.pending_user_input)
             st.session_state.pending_user_input = None
@@ -881,7 +878,7 @@ def process_user_input(user_message):
 
                 # Save and rerun
                 save_user_data()
-                st.rerun()
+           
             else:
                 st.error("Sorry, I couldn't generate a response. Please try again.")
 
@@ -971,7 +968,7 @@ def handle_app_error():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 Refresh Page"):
-                st.rerun()
+               
         with col2:
             if st.button("🏠 Go to Home"):
                 # Clear problematic state
@@ -979,7 +976,7 @@ def handle_app_error():
                 for key in problematic_keys:
                     st.session_state.pop(key, None)
                 st.session_state.page = "login"
-                st.rerun()
+            
 
 # --- App Entry Point ---
 if __name__ == "__main__":
